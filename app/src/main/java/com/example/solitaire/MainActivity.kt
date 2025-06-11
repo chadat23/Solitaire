@@ -244,9 +244,27 @@ fun FreeCellScreen(
 ) {
     // Helper functions for card movement and validation
     fun isValidMove(card: Card, targetStack: List<Card>): Boolean {
-        return targetStack.isEmpty() || 
-               (card.color != targetStack.last().color && 
-                card.value == targetStack.last().value - 1)
+        // Allow moving to empty stacks
+        if (targetStack.isEmpty()) {
+            return true
+        }
+        // For non-empty stacks, check alternating colors and decreasing values
+        return card.color != targetStack.last().color && 
+               card.value == targetStack.last().value - 1
+    }
+    
+    fun isValidTopRightMove(card: Card, targetStack: List<Card>): Boolean {
+        return if (targetStack.isEmpty()) {
+            println("Stack is empty, checking if card is ace: ${card.value == 1}")
+            card.value == 1 // Only aces can start a new stack
+        } else {
+            val topCard = targetStack.last()
+            println("Checking move: Card ${card.value} of ${card.suit} onto ${topCard.value} of ${topCard.suit}")
+            println("Same suit: ${card.suit == topCard.suit}")
+            println("Next value: ${card.value == topCard.value + 1}")
+            card.suit == topCard.suit && // Same suit
+            card.value == topCard.value + 1 // Next value up
+        }
     }
     
     fun moveCardToStack(
@@ -297,6 +315,8 @@ fun FreeCellScreen(
         fromStackIndex: Int,
         toTopRightIndex: Int
     ) {
+        println("Moving card ${card.value} of ${card.suit} to top right stack $toTopRightIndex")
+        
         // Remove from main stack
         val newStacks = secondRowStacks.toMutableList()
         newStacks[fromStackIndex] = newStacks[fromStackIndex].toMutableList().apply {
@@ -306,7 +326,9 @@ fun FreeCellScreen(
         
         // Add to top right stack
         val newTopRightStacks = topRightStacks.toMutableList()
-        newTopRightStacks[toTopRightIndex] = mutableListOf(card)
+        newTopRightStacks[toTopRightIndex] = newTopRightStacks[toTopRightIndex].toMutableList().apply {
+            add(card)
+        }
         onTopRightStacksChanged(newTopRightStacks)
         
         // Record the move
@@ -453,24 +475,26 @@ fun FreeCellScreen(
                             .border(2.dp, Color.Gray)
                             .background(Color.LightGray.copy(alpha = 0.3f))
                             .clickable {
-                                // If an ace is selected, move it to this stack
+                                // If a card is selected, try to move it to this stack
                                 selectedCardIndex?.let { (stackIndex, cardIndex) ->
                                     val selectedCard = secondRowStacks[stackIndex][cardIndex]
-                                    if (selectedCard.value == 1) { // It's an ace
+                                    println("Selected card: ${selectedCard.value} of ${selectedCard.suit}")
+                                    println("Target stack: ${topRightStacks[index].map { "${it.value} of ${it.suit}" }}")
+                                    if (isValidTopRightMove(selectedCard, topRightStacks[index])) {
                                         moveCardToTopRight(selectedCard, stackIndex, index)
-                                        onSelectedCardIndexChanged(null)
                                     }
+                                    // Always clear selection after attempting move
+                                    onSelectedCardIndexChanged(null)
                                 }
                             }
                     ) {
-                        // Display any cards in this stack
-                        topRightStacks[index].forEachIndexed { cardIndex, card ->
+                        // Display only the top card of the stack
+                        topRightStacks[index].lastOrNull()?.let { card ->
                             CardView(
                                 card = card,
                                 modifier = Modifier
                                     .width(35.dp)
                                     .height(52.dp)
-                                    .offset(y = (cardIndex * 20).dp)
                             )
                         }
                     }
@@ -490,6 +514,44 @@ fun FreeCellScreen(
                     modifier = Modifier
                         .width(35.dp)
                         .height(52.dp)
+                        .then(
+                            if (secondRowStacks[stackIndex].isEmpty()) {
+                                Modifier
+                                    .border(2.dp, Color.Gray)
+                                    .background(Color.LightGray.copy(alpha = 0.3f))
+                                    .clickable {
+                                        // Handle clicks on empty stacks
+                                        selectedCardIndex?.let { (selectedStackIndex, selectedCardIndex) ->
+                                            val selectedCard = secondRowStacks[selectedStackIndex][selectedCardIndex]
+                                            val newStacks = moveCardToStack(
+                                                selectedCard,
+                                                selectedStackIndex,
+                                                stackIndex,
+                                                secondRowStacks
+                                            )
+                                            onSecondRowStacksChanged(newStacks)
+                                            
+                                            // Record the move
+                                            onMoveHistoryChanged(moveHistory + Move(
+                                                MoveType.MAIN_STACK,
+                                                MoveType.MAIN_STACK,
+                                                selectedStackIndex,
+                                                stackIndex,
+                                                selectedCard
+                                            ))
+                                            onSelectedCardIndexChanged(null)
+                                        } ?: selectedTopLeftIndex?.let { selectedIndex ->
+                                            val selectedCard = topLeftStacks[selectedIndex].firstOrNull()
+                                            if (selectedCard != null) {
+                                                moveTopLeftCardToStack(selectedIndex, stackIndex)
+                                            }
+                                            onSelectedTopLeftIndexChanged(null)
+                                        }
+                                    }
+                            } else {
+                                Modifier
+                            }
+                        )
                 ) {
                     // Display all cards in the stack
                     secondRowStacks[stackIndex].forEachIndexed { cardIndex, card ->
@@ -514,7 +576,6 @@ fun FreeCellScreen(
                                                 secondRowStacks
                                             )
                                             onSecondRowStacksChanged(newStacks)
-                                            onSelectedCardIndexChanged(null)
                                             
                                             // Record the move
                                             onMoveHistoryChanged(moveHistory + Move(
@@ -525,6 +586,8 @@ fun FreeCellScreen(
                                                 selectedCard
                                             ))
                                         }
+                                        // Always clear selection after attempting move
+                                        onSelectedCardIndexChanged(null)
                                     } ?: selectedTopLeftIndex?.let { selectedIndex ->
                                         // If a top left card is selected, try to move it to this stack
                                         val selectedCard = topLeftStacks[selectedIndex].firstOrNull()
@@ -533,8 +596,9 @@ fun FreeCellScreen(
                                         // Check if the move is valid
                                         if (selectedCard != null && isValidMove(selectedCard, targetStack)) {
                                             moveTopLeftCardToStack(selectedIndex, stackIndex)
-                                            onSelectedTopLeftIndexChanged(null)
                                         }
+                                        // Always clear selection after attempting move
+                                        onSelectedTopLeftIndexChanged(null)
                                     } ?: run {
                                         // If no card is selected, check if this card is movable
                                         if (card.isMovableWithStack(secondRowStacks[stackIndex], cardIndex)) {
