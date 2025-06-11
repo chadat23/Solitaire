@@ -27,6 +27,21 @@ sealed class Screen {
     object Solitaire : Screen()
 }
 
+// Data class to represent a move
+data class Move(
+    val fromType: MoveType,
+    val toType: MoveType,
+    val fromIndex: Int,
+    val toIndex: Int,
+    val card: Card
+)
+
+enum class MoveType {
+    MAIN_STACK,
+    TOP_LEFT,
+    TOP_RIGHT
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +65,7 @@ fun GameApp() {
     var topLeftStacks by remember { mutableStateOf(List(4) { mutableListOf<Card>() }) }
     var selectedCardIndex by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var selectedTopLeftIndex by remember { mutableStateOf<Int?>(null) }
+    var moveHistory by remember { mutableStateOf<List<Move>>(emptyList()) }
     
     // Function to deal cards
     fun dealNewGame() {
@@ -82,6 +98,54 @@ fun GameApp() {
         topLeftStacks = List(4) { mutableListOf() }
         selectedCardIndex = null
         selectedTopLeftIndex = null
+        moveHistory = emptyList()
+    }
+    
+    // Function to undo the last move
+    fun undoLastMove() {
+        val lastMove = moveHistory.lastOrNull() ?: return
+        
+        when (lastMove.toType) {
+            MoveType.MAIN_STACK -> {
+                val newStacks = secondRowStacks.toMutableList()
+                newStacks[lastMove.toIndex] = newStacks[lastMove.toIndex].toMutableList().apply {
+                    removeAt(size - 1)
+                }
+                secondRowStacks = newStacks
+            }
+            MoveType.TOP_LEFT -> {
+                val newTopLeftStacks = topLeftStacks.toMutableList()
+                newTopLeftStacks[lastMove.toIndex] = mutableListOf()
+                topLeftStacks = newTopLeftStacks
+            }
+            MoveType.TOP_RIGHT -> {
+                val newTopRightStacks = topRightStacks.toMutableList()
+                newTopRightStacks[lastMove.toIndex] = mutableListOf()
+                topRightStacks = newTopRightStacks
+            }
+        }
+        
+        when (lastMove.fromType) {
+            MoveType.MAIN_STACK -> {
+                val newStacks = secondRowStacks.toMutableList()
+                newStacks[lastMove.fromIndex] = newStacks[lastMove.fromIndex].toMutableList().apply {
+                    add(lastMove.card)
+                }
+                secondRowStacks = newStacks
+            }
+            MoveType.TOP_LEFT -> {
+                val newTopLeftStacks = topLeftStacks.toMutableList()
+                newTopLeftStacks[lastMove.fromIndex] = mutableListOf(lastMove.card)
+                topLeftStacks = newTopLeftStacks
+            }
+            MoveType.TOP_RIGHT -> {
+                val newTopRightStacks = topRightStacks.toMutableList()
+                newTopRightStacks[lastMove.fromIndex] = mutableListOf(lastMove.card)
+                topRightStacks = newTopRightStacks
+            }
+        }
+        
+        moveHistory = moveHistory.dropLast(1)
     }
     
     Surface(
@@ -104,12 +168,15 @@ fun GameApp() {
                 topLeftStacks = topLeftStacks,
                 selectedCardIndex = selectedCardIndex,
                 selectedTopLeftIndex = selectedTopLeftIndex,
+                moveHistory = moveHistory,
                 onDealNewGame = { dealNewGame() },
+                onUndoMove = { undoLastMove() },
                 onSecondRowStacksChanged = { secondRowStacks = it },
                 onTopRightStacksChanged = { topRightStacks = it },
                 onTopLeftStacksChanged = { topLeftStacks = it },
                 onSelectedCardIndexChanged = { selectedCardIndex = it },
-                onSelectedTopLeftIndexChanged = { selectedTopLeftIndex = it }
+                onSelectedTopLeftIndexChanged = { selectedTopLeftIndex = it },
+                onMoveHistoryChanged = { moveHistory = it }
             )
             Screen.Solitaire -> SolitaireScreen(
                 onBackPressed = { currentScreen = Screen.Menu }
@@ -165,13 +232,121 @@ fun FreeCellScreen(
     topLeftStacks: List<MutableList<Card>>,
     selectedCardIndex: Pair<Int, Int>?,
     selectedTopLeftIndex: Int?,
+    moveHistory: List<Move>,
     onDealNewGame: () -> Unit,
+    onUndoMove: () -> Unit,
     onSecondRowStacksChanged: (List<MutableList<Card>>) -> Unit,
     onTopRightStacksChanged: (List<MutableList<Card>>) -> Unit,
     onTopLeftStacksChanged: (List<MutableList<Card>>) -> Unit,
     onSelectedCardIndexChanged: (Pair<Int, Int>?) -> Unit,
-    onSelectedTopLeftIndexChanged: (Int?) -> Unit
+    onSelectedTopLeftIndexChanged: (Int?) -> Unit,
+    onMoveHistoryChanged: (List<Move>) -> Unit
 ) {
+    // Helper functions for card movement and validation
+    fun isValidMove(card: Card, targetStack: List<Card>): Boolean {
+        return targetStack.isEmpty() || 
+               (card.color != targetStack.last().color && 
+                card.value == targetStack.last().value - 1)
+    }
+    
+    fun moveCardToStack(
+        card: Card,
+        fromStackIndex: Int,
+        toStackIndex: Int,
+        stacks: List<MutableList<Card>>
+    ): List<MutableList<Card>> {
+        val newStacks = stacks.toMutableList()
+        newStacks[fromStackIndex] = newStacks[fromStackIndex].toMutableList().apply {
+            removeAt(size - 1) // Remove the last card
+        }
+        newStacks[toStackIndex] = newStacks[toStackIndex].toMutableList().apply {
+            add(card)
+        }
+        return newStacks
+    }
+    
+    fun moveCardToTopLeft(
+        card: Card,
+        fromStackIndex: Int,
+        toTopLeftIndex: Int
+    ) {
+        // Remove from main stack
+        val newStacks = secondRowStacks.toMutableList()
+        newStacks[fromStackIndex] = newStacks[fromStackIndex].toMutableList().apply {
+            removeAt(size - 1)
+        }
+        onSecondRowStacksChanged(newStacks)
+        
+        // Add to top left stack
+        val newTopLeftStacks = topLeftStacks.toMutableList()
+        newTopLeftStacks[toTopLeftIndex] = mutableListOf(card)
+        onTopLeftStacksChanged(newTopLeftStacks)
+        
+        // Record the move
+        onMoveHistoryChanged(moveHistory + Move(
+            MoveType.MAIN_STACK,
+            MoveType.TOP_LEFT,
+            fromStackIndex,
+            toTopLeftIndex,
+            card
+        ))
+    }
+    
+    fun moveCardToTopRight(
+        card: Card,
+        fromStackIndex: Int,
+        toTopRightIndex: Int
+    ) {
+        // Remove from main stack
+        val newStacks = secondRowStacks.toMutableList()
+        newStacks[fromStackIndex] = newStacks[fromStackIndex].toMutableList().apply {
+            removeAt(size - 1)
+        }
+        onSecondRowStacksChanged(newStacks)
+        
+        // Add to top right stack
+        val newTopRightStacks = topRightStacks.toMutableList()
+        newTopRightStacks[toTopRightIndex] = mutableListOf(card)
+        onTopRightStacksChanged(newTopRightStacks)
+        
+        // Record the move
+        onMoveHistoryChanged(moveHistory + Move(
+            MoveType.MAIN_STACK,
+            MoveType.TOP_RIGHT,
+            fromStackIndex,
+            toTopRightIndex,
+            card
+        ))
+    }
+    
+    fun moveTopLeftCardToStack(
+        fromTopLeftIndex: Int,
+        toStackIndex: Int
+    ) {
+        val card = topLeftStacks[fromTopLeftIndex].firstOrNull() ?: return
+        
+        // Remove from top left stack
+        val newTopLeftStacks = topLeftStacks.toMutableList()
+        newTopLeftStacks[fromTopLeftIndex] = mutableListOf()
+        onTopLeftStacksChanged(newTopLeftStacks)
+        
+        // Add to main stack
+        val newStacks = secondRowStacks.toMutableList()
+        newStacks[toStackIndex] = newStacks[toStackIndex].toMutableList().apply {
+            add(card)
+        }
+        onSecondRowStacksChanged(newStacks)
+        
+        // Record the move
+        onMoveHistoryChanged(moveHistory + Move(
+            MoveType.TOP_LEFT,
+            MoveType.MAIN_STACK,
+            fromTopLeftIndex,
+            toStackIndex,
+            card
+        ))
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -227,20 +402,8 @@ fun FreeCellScreen(
                                 // If a bottom card is selected, move it to this stack
                                 selectedCardIndex?.let { (stackIndex, cardIndex) ->
                                     val selectedCard = secondRowStacks[stackIndex][cardIndex]
-                                    if (cardIndex == secondRowStacks[stackIndex].size - 1) { // It's the bottom card
-                                        // Remove the card from its current stack
-                                        val newStacks = secondRowStacks.toMutableList()
-                                        newStacks[stackIndex] = newStacks[stackIndex].toMutableList().apply {
-                                            removeAt(cardIndex)
-                                        }
-                                        onSecondRowStacksChanged(newStacks)
-                                        
-                                        // Add the card to the top left stack
-                                        val newTopLeftStacks = topLeftStacks.toMutableList()
-                                        newTopLeftStacks[index] = mutableListOf(selectedCard)
-                                        onTopLeftStacksChanged(newTopLeftStacks)
-                                        
-                                        // Clear selection
+                                    if (cardIndex == secondRowStacks[stackIndex].size - 1) {
+                                        moveCardToTopLeft(selectedCard, stackIndex, index)
                                         onSelectedCardIndexChanged(null)
                                     }
                                 }
@@ -259,19 +422,7 @@ fun FreeCellScreen(
                                         selectedCardIndex?.let { (selectedStackIndex, selectedCardIndex) ->
                                             val selectedCard = secondRowStacks[selectedStackIndex][selectedCardIndex]
                                             if (selectedCardIndex == secondRowStacks[selectedStackIndex].size - 1) {
-                                                // Remove the card from its current stack
-                                                val newStacks = secondRowStacks.toMutableList()
-                                                newStacks[selectedStackIndex] = newStacks[selectedStackIndex].toMutableList().apply {
-                                                    removeAt(selectedCardIndex)
-                                                }
-                                                onSecondRowStacksChanged(newStacks)
-                                                
-                                                // Add the card to the top left stack
-                                                val newTopLeftStacks = topLeftStacks.toMutableList()
-                                                newTopLeftStacks[index] = mutableListOf(selectedCard)
-                                                onTopLeftStacksChanged(newTopLeftStacks)
-                                                
-                                                // Clear selection
+                                                moveCardToTopLeft(selectedCard, selectedStackIndex, index)
                                                 onSelectedCardIndexChanged(null)
                                             }
                                         } ?: run {
@@ -306,19 +457,7 @@ fun FreeCellScreen(
                                 selectedCardIndex?.let { (stackIndex, cardIndex) ->
                                     val selectedCard = secondRowStacks[stackIndex][cardIndex]
                                     if (selectedCard.value == 1) { // It's an ace
-                                        // Remove the ace from its current stack
-                                        val newStacks = secondRowStacks.toMutableList()
-                                        newStacks[stackIndex] = newStacks[stackIndex].toMutableList().apply {
-                                            removeAt(cardIndex)
-                                        }
-                                        onSecondRowStacksChanged(newStacks)
-                                        
-                                        // Add the ace to the top right stack
-                                        val newTopRightStacks = topRightStacks.toMutableList()
-                                        newTopRightStacks[index] = mutableListOf(selectedCard)
-                                        onTopRightStacksChanged(newTopRightStacks)
-                                        
-                                        // Clear selection
+                                        moveCardToTopRight(selectedCard, stackIndex, index)
                                         onSelectedCardIndexChanged(null)
                                     }
                                 }
@@ -367,22 +506,24 @@ fun FreeCellScreen(
                                         val targetStack = secondRowStacks[stackIndex]
                                         
                                         // Check if the move is valid
-                                        if (targetStack.isEmpty() || 
-                                            (selectedCard.color != targetStack.last().color && 
-                                             selectedCard.value == targetStack.last().value - 1)) {
-                                            // Remove the card from its current stack
-                                            val newStacks = secondRowStacks.toMutableList()
-                                            newStacks[selectedStackIndex] = newStacks[selectedStackIndex].toMutableList().apply {
-                                                removeAt(selectedCardIndex)
-                                            }
-                                            
-                                            // Add the card to the target stack
-                                            newStacks[stackIndex] = newStacks[stackIndex].toMutableList().apply {
-                                                add(selectedCard)
-                                            }
-                                            
+                                        if (isValidMove(selectedCard, targetStack)) {
+                                            val newStacks = moveCardToStack(
+                                                selectedCard,
+                                                selectedStackIndex,
+                                                stackIndex,
+                                                secondRowStacks
+                                            )
                                             onSecondRowStacksChanged(newStacks)
                                             onSelectedCardIndexChanged(null)
+                                            
+                                            // Record the move
+                                            onMoveHistoryChanged(moveHistory + Move(
+                                                MoveType.MAIN_STACK,
+                                                MoveType.MAIN_STACK,
+                                                selectedStackIndex,
+                                                stackIndex,
+                                                selectedCard
+                                            ))
                                         }
                                     } ?: selectedTopLeftIndex?.let { selectedIndex ->
                                         // If a top left card is selected, try to move it to this stack
@@ -390,22 +531,8 @@ fun FreeCellScreen(
                                         val targetStack = secondRowStacks[stackIndex]
                                         
                                         // Check if the move is valid
-                                        if (selectedCard != null && (targetStack.isEmpty() || 
-                                            (selectedCard.color != targetStack.last().color && 
-                                             selectedCard.value == targetStack.last().value - 1))) {
-                                            // Remove the card from the top left stack
-                                            val newTopLeftStacks = topLeftStacks.toMutableList()
-                                            newTopLeftStacks[selectedIndex] = mutableListOf()
-                                            onTopLeftStacksChanged(newTopLeftStacks)
-                                            
-                                            // Add the card to the target stack
-                                            val newStacks = secondRowStacks.toMutableList()
-                                            newStacks[stackIndex] = newStacks[stackIndex].toMutableList().apply {
-                                                add(selectedCard)
-                                            }
-                                            onSecondRowStacksChanged(newStacks)
-                                            
-                                            // Clear selection
+                                        if (selectedCard != null && isValidMove(selectedCard, targetStack)) {
+                                            moveTopLeftCardToStack(selectedIndex, stackIndex)
                                             onSelectedTopLeftIndexChanged(null)
                                         }
                                     } ?: run {
@@ -429,6 +556,19 @@ fun FreeCellScreen(
                     }
                 }
             }
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // Undo button at the bottom
+        Button(
+            onClick = onUndoMove,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(bottom = 16.dp),
+            enabled = moveHistory.isNotEmpty()
+        ) {
+            Text("Undo")
         }
     }
 }
