@@ -23,13 +23,14 @@ import com.example.solitaire.model.Card
 @Composable
 fun CardView(
     card: Card,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false
 ) {
     Box(
         modifier = modifier
             .size(80.dp, 120.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (card.isFaceUp) Color.White else Color.Blue)
+            .background(if (card.isFaceUp) if (isSelected) Color.Yellow else Color.White else Color.Blue)
             .border(1.dp, Color.Black, RoundedCornerShape(8.dp))
     ) {
         if (card.isFaceUp) {

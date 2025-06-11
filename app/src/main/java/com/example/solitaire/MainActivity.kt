@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,9 +17,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.solitaire.model.Card
-import com.example.solitaire.model.Suit
+import com.example.solitaire.model.Deck
 import com.example.solitaire.ui.components.CardStack
 import com.example.solitaire.ui.components.CardView
+
+sealed class Screen {
+    object Menu : Screen()
+    object FreeCell : Screen()
+    object Solitaire : Screen()
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,19 +43,78 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun GameApp() {
-    var currentScreen by remember { mutableStateOf("menu") }
+    var currentScreen by remember { mutableStateOf<Screen>(Screen.Menu) }
+    var deck by remember { mutableStateOf(Deck()) }
+    var secondRowStacks by remember { mutableStateOf(List(8) { mutableListOf<Card>() }) }
+    var topRightStacks by remember { mutableStateOf(List(4) { mutableListOf<Card>() }) }
+    var topLeftStacks by remember { mutableStateOf(List(4) { mutableListOf<Card>() }) }
+    var selectedCardIndex by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var selectedTopLeftIndex by remember { mutableStateOf<Int?>(null) }
     
-    when (currentScreen) {
-        "menu" -> GameSelectionScreen(
-            onFreeCellSelected = { currentScreen = "freecell" },
-            onSolitaireSelected = { currentScreen = "solitaire" }
-        )
-        "freecell" -> FreeCellScreen(
-            onBackPressed = { currentScreen = "menu" }
-        )
-        "solitaire" -> SolitaireScreen(
-            onBackPressed = { currentScreen = "menu" }
-        )
+    // Function to deal cards
+    fun dealNewGame() {
+        // Create a new deck
+        deck = Deck()
+        
+        // Create new mutable lists for each stack
+        val newStacks = List(8) { mutableListOf<Card>() }
+        
+        // Deal initial two cards to each stack
+        repeat(2) {
+            for (i in 0..7) {
+                deck.dealCard()?.let { card ->
+                    newStacks[i].add(card)
+                }
+            }
+        }
+        
+        // Deal remaining cards
+        var currentColumn = 0
+        while (true) {
+            val card = deck.dealCard() ?: break
+            newStacks[currentColumn].add(card)
+            currentColumn = (currentColumn + 1) % 8
+        }
+        
+        // Update the state with the new stacks
+        secondRowStacks = newStacks
+        topRightStacks = List(4) { mutableListOf() }
+        topLeftStacks = List(4) { mutableListOf() }
+        selectedCardIndex = null
+        selectedTopLeftIndex = null
+    }
+    
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color(0xFF2E7D32) // Medium green
+    ) {
+        when (currentScreen) {
+            Screen.Menu -> GameSelectionScreen(
+                onFreeCellSelected = {
+                    currentScreen = Screen.FreeCell
+                    dealNewGame() // Deal a new game when switching to FreeCell
+                },
+                onSolitaireSelected = { currentScreen = Screen.Solitaire }
+            )
+            Screen.FreeCell -> FreeCellScreen(
+                onBackPressed = { currentScreen = Screen.Menu },
+                deck = deck,
+                secondRowStacks = secondRowStacks,
+                topRightStacks = topRightStacks,
+                topLeftStacks = topLeftStacks,
+                selectedCardIndex = selectedCardIndex,
+                selectedTopLeftIndex = selectedTopLeftIndex,
+                onDealNewGame = { dealNewGame() },
+                onSecondRowStacksChanged = { secondRowStacks = it },
+                onTopRightStacksChanged = { topRightStacks = it },
+                onTopLeftStacksChanged = { topLeftStacks = it },
+                onSelectedCardIndexChanged = { selectedCardIndex = it },
+                onSelectedTopLeftIndexChanged = { selectedTopLeftIndex = it }
+            )
+            Screen.Solitaire -> SolitaireScreen(
+                onBackPressed = { currentScreen = Screen.Menu }
+            )
+        }
     }
 }
 
@@ -90,54 +157,276 @@ fun GameSelectionScreen(
 }
 
 @Composable
-fun FreeCellScreen(onBackPressed: () -> Unit) {
+fun FreeCellScreen(
+    onBackPressed: () -> Unit,
+    deck: Deck,
+    secondRowStacks: List<MutableList<Card>>,
+    topRightStacks: List<MutableList<Card>>,
+    topLeftStacks: List<MutableList<Card>>,
+    selectedCardIndex: Pair<Int, Int>?,
+    selectedTopLeftIndex: Int?,
+    onDealNewGame: () -> Unit,
+    onSecondRowStacksChanged: (List<MutableList<Card>>) -> Unit,
+    onTopRightStacksChanged: (List<MutableList<Card>>) -> Unit,
+    onTopLeftStacksChanged: (List<MutableList<Card>>) -> Unit,
+    onSelectedCardIndexChanged: (Pair<Int, Int>?) -> Unit,
+    onSelectedTopLeftIndexChanged: (Int?) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                // Clear any selection when clicking the background
+                onSelectedCardIndexChanged(null)
+                onSelectedTopLeftIndexChanged(null)
+            }
     ) {
-        Button(
-            onClick = onBackPressed,
-            modifier = Modifier.padding(bottom = 16.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Back to Menu")
+            Button(
+                onClick = onBackPressed,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Text("Back to Menu")
+            }
+            
+            Button(
+                onClick = onDealNewGame
+            ) {
+                Text("New Game")
+            }
         }
         
-        // Two sets of card placeholder spots
+        // First row - two sets of 4 cards
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp),
             horizontalArrangement = Arrangement.Center
         ) {
-            // First set of 4 cards
+            // First set of 4 cards (top left stacks)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(end = 32.dp)
             ) {
-                repeat(4) {
+                repeat(4) { index ->
                     Box(
                         modifier = Modifier
                             .width(35.dp)
                             .height(52.dp)
                             .border(2.dp, Color.Gray)
                             .background(Color.LightGray.copy(alpha = 0.3f))
-                    )
+                            .clickable {
+                                // If a bottom card is selected, move it to this stack
+                                selectedCardIndex?.let { (stackIndex, cardIndex) ->
+                                    val selectedCard = secondRowStacks[stackIndex][cardIndex]
+                                    if (cardIndex == secondRowStacks[stackIndex].size - 1) { // It's the bottom card
+                                        // Remove the card from its current stack
+                                        val newStacks = secondRowStacks.toMutableList()
+                                        newStacks[stackIndex] = newStacks[stackIndex].toMutableList().apply {
+                                            removeAt(cardIndex)
+                                        }
+                                        onSecondRowStacksChanged(newStacks)
+                                        
+                                        // Add the card to the top left stack
+                                        val newTopLeftStacks = topLeftStacks.toMutableList()
+                                        newTopLeftStacks[index] = mutableListOf(selectedCard)
+                                        onTopLeftStacksChanged(newTopLeftStacks)
+                                        
+                                        // Clear selection
+                                        onSelectedCardIndexChanged(null)
+                                    }
+                                }
+                            }
+                    ) {
+                        // Display any cards in this stack
+                        topLeftStacks[index].forEachIndexed { cardIndex, card ->
+                            CardView(
+                                card = card,
+                                modifier = Modifier
+                                    .width(35.dp)
+                                    .height(52.dp)
+                                    .offset(y = (cardIndex * 20).dp)
+                                    .clickable {
+                                        // If a card is selected from the main stacks, try to move it here
+                                        selectedCardIndex?.let { (selectedStackIndex, selectedCardIndex) ->
+                                            val selectedCard = secondRowStacks[selectedStackIndex][selectedCardIndex]
+                                            if (selectedCardIndex == secondRowStacks[selectedStackIndex].size - 1) {
+                                                // Remove the card from its current stack
+                                                val newStacks = secondRowStacks.toMutableList()
+                                                newStacks[selectedStackIndex] = newStacks[selectedStackIndex].toMutableList().apply {
+                                                    removeAt(selectedCardIndex)
+                                                }
+                                                onSecondRowStacksChanged(newStacks)
+                                                
+                                                // Add the card to the top left stack
+                                                val newTopLeftStacks = topLeftStacks.toMutableList()
+                                                newTopLeftStacks[index] = mutableListOf(selectedCard)
+                                                onTopLeftStacksChanged(newTopLeftStacks)
+                                                
+                                                // Clear selection
+                                                onSelectedCardIndexChanged(null)
+                                            }
+                                        } ?: run {
+                                            // If no card is selected, select this card
+                                            onSelectedTopLeftIndexChanged(
+                                                if (selectedTopLeftIndex == index) null else index
+                                            )
+                                            // Clear any other selection
+                                            onSelectedCardIndexChanged(null)
+                                        }
+                                    },
+                                isSelected = selectedTopLeftIndex == index
+                            )
+                        }
+                    }
                 }
             }
             
-            // Second set of 4 cards
+            // Second set of 4 cards (top right stacks)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                repeat(4) {
+                repeat(4) { index ->
                     Box(
                         modifier = Modifier
                             .width(35.dp)
                             .height(52.dp)
                             .border(2.dp, Color.Gray)
                             .background(Color.LightGray.copy(alpha = 0.3f))
-                    )
+                            .clickable {
+                                // If an ace is selected, move it to this stack
+                                selectedCardIndex?.let { (stackIndex, cardIndex) ->
+                                    val selectedCard = secondRowStacks[stackIndex][cardIndex]
+                                    if (selectedCard.value == 1) { // It's an ace
+                                        // Remove the ace from its current stack
+                                        val newStacks = secondRowStacks.toMutableList()
+                                        newStacks[stackIndex] = newStacks[stackIndex].toMutableList().apply {
+                                            removeAt(cardIndex)
+                                        }
+                                        onSecondRowStacksChanged(newStacks)
+                                        
+                                        // Add the ace to the top right stack
+                                        val newTopRightStacks = topRightStacks.toMutableList()
+                                        newTopRightStacks[index] = mutableListOf(selectedCard)
+                                        onTopRightStacksChanged(newTopRightStacks)
+                                        
+                                        // Clear selection
+                                        onSelectedCardIndexChanged(null)
+                                    }
+                                }
+                            }
+                    ) {
+                        // Display any cards in this stack
+                        topRightStacks[index].forEachIndexed { cardIndex, card ->
+                            CardView(
+                                card = card,
+                                modifier = Modifier
+                                    .width(35.dp)
+                                    .height(52.dp)
+                                    .offset(y = (cardIndex * 20).dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Second row - 8 stacks of cards
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 32.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            repeat(8) { stackIndex ->
+                Box(
+                    modifier = Modifier
+                        .width(35.dp)
+                        .height(52.dp)
+                ) {
+                    // Display all cards in the stack
+                    secondRowStacks[stackIndex].forEachIndexed { cardIndex, card ->
+                        CardView(
+                            card = card,
+                            modifier = Modifier
+                                .width(35.dp)
+                                .height(52.dp)
+                                .offset(y = (cardIndex * 20).dp)
+                                .clickable {
+                                    // If a card is selected, try to move it to this stack
+                                    selectedCardIndex?.let { (selectedStackIndex, selectedCardIndex) ->
+                                        val selectedCard = secondRowStacks[selectedStackIndex][selectedCardIndex]
+                                        val targetStack = secondRowStacks[stackIndex]
+                                        
+                                        // Check if the move is valid
+                                        if (targetStack.isEmpty() || 
+                                            (selectedCard.color != targetStack.last().color && 
+                                             selectedCard.value == targetStack.last().value - 1)) {
+                                            // Remove the card from its current stack
+                                            val newStacks = secondRowStacks.toMutableList()
+                                            newStacks[selectedStackIndex] = newStacks[selectedStackIndex].toMutableList().apply {
+                                                removeAt(selectedCardIndex)
+                                            }
+                                            
+                                            // Add the card to the target stack
+                                            newStacks[stackIndex] = newStacks[stackIndex].toMutableList().apply {
+                                                add(selectedCard)
+                                            }
+                                            
+                                            onSecondRowStacksChanged(newStacks)
+                                            onSelectedCardIndexChanged(null)
+                                        }
+                                    } ?: selectedTopLeftIndex?.let { selectedIndex ->
+                                        // If a top left card is selected, try to move it to this stack
+                                        val selectedCard = topLeftStacks[selectedIndex].firstOrNull()
+                                        val targetStack = secondRowStacks[stackIndex]
+                                        
+                                        // Check if the move is valid
+                                        if (selectedCard != null && (targetStack.isEmpty() || 
+                                            (selectedCard.color != targetStack.last().color && 
+                                             selectedCard.value == targetStack.last().value - 1))) {
+                                            // Remove the card from the top left stack
+                                            val newTopLeftStacks = topLeftStacks.toMutableList()
+                                            newTopLeftStacks[selectedIndex] = mutableListOf()
+                                            onTopLeftStacksChanged(newTopLeftStacks)
+                                            
+                                            // Add the card to the target stack
+                                            val newStacks = secondRowStacks.toMutableList()
+                                            newStacks[stackIndex] = newStacks[stackIndex].toMutableList().apply {
+                                                add(selectedCard)
+                                            }
+                                            onSecondRowStacksChanged(newStacks)
+                                            
+                                            // Clear selection
+                                            onSelectedTopLeftIndexChanged(null)
+                                        }
+                                    } ?: run {
+                                        // If no card is selected, check if this card is movable
+                                        if (card.isMovableWithStack(secondRowStacks[stackIndex], cardIndex)) {
+                                            // Toggle selection
+                                            onSelectedCardIndexChanged(
+                                                if (selectedCardIndex == Pair(stackIndex, cardIndex)) {
+                                                    null
+                                                } else {
+                                                    Pair(stackIndex, cardIndex)
+                                                }
+                                            )
+                                            // Clear any top left selection
+                                            onSelectedTopLeftIndexChanged(null)
+                                        }
+                                    }
+                                },
+                            isSelected = selectedCardIndex == Pair(stackIndex, cardIndex)
+                        )
+                    }
                 }
             }
         }

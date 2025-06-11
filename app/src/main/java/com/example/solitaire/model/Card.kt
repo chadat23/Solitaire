@@ -35,4 +35,31 @@ data class Card(
             Suit.CLUBS -> "♣"
             Suit.SPADES -> "♠"
         }
+
+    /**
+     * Checks if this card and all cards below it in a stack follow the alternating color
+     * and decreasing value pattern required for moving cards.
+     * 
+     * @param stack The list of cards in the stack, with the top card at index 0
+     * @param cardIndex The index of this card in the stack
+     * @return true if this card and all cards below it can be moved together
+     */
+    fun isMovableWithStack(stack: List<Card>, cardIndex: Int): Boolean {
+        // Can't move face-down cards
+        if (!isFaceUp) return false
+        
+        // Check each pair of adjacent cards in the sequence
+        for (i in cardIndex until stack.size - 1) {
+            val currentCard = stack[i]
+            val nextCard = stack[i + 1]
+            
+            // Check if colors alternate
+            if (currentCard.color == nextCard.color) return false
+            
+            // Check if values decrease by 1
+            if (currentCard.value != nextCard.value + 1) return false
+        }
+        
+        return true
+    }
 } 
