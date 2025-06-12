@@ -217,7 +217,6 @@ fun FreeCellScreen(
                             .background(Color.LightGray.copy(alpha = 0.3f))
                             .clickable {
                                 if (highlightedLocation != null) {
-                                    // A card is already selected, move it to this stack
                                     val selectedStackType = highlightedLocation!!.stackType
                                     val selectedColumn = highlightedLocation!!.column
                                     val selectedCard = when (selectedStackType) {
@@ -226,24 +225,24 @@ fun FreeCellScreen(
                                         StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
                                     }
                                     if (selectedCard != null) {
-                                        // Remove the card from its original stack
-                                        when (selectedStackType) {
-                                            StackType.SECOND_ROW -> {
-                                                secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                        val destinationCard = topLeftStacks[index].firstOrNull()
+                                        if (isValidMove(selectedCard, StackType.TOP_LEFT, index, destinationCard)) {
+                                            when (selectedStackType) {
+                                                StackType.SECOND_ROW -> {
+                                                    secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                                }
+                                                StackType.TOP_LEFT -> {
+                                                    topLeftStacks[selectedColumn].clear()
+                                                }
+                                                StackType.TOP_RIGHT -> {
+                                                    topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
+                                                }
                                             }
-                                            StackType.TOP_LEFT -> {
-                                                topLeftStacks[selectedColumn].clear()
-                                            }
-                                            StackType.TOP_RIGHT -> {
-                                                topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
-                                            }
+                                            topLeftStacks[index].add(selectedCard)
                                         }
-                                        // Add the card to the new stack
-                                        topLeftStacks[index].add(selectedCard)
                                     }
                                     setHighlightedLocation(null)
                                 } else {
-                                    // No card is selected, select the card of this stack
                                     if (topLeftStacks[index].isEmpty()) {
                                         setHighlightedLocation(null)
                                     } else {
@@ -258,7 +257,8 @@ fun FreeCellScreen(
                                 card = card,
                                 modifier = Modifier
                                     .width(35.dp)
-                                    .height(52.dp)
+                                    .height(52.dp),
+                                isSelected = cardIndex == topLeftStacks[index].lastIndex && highlightedLocation?.stackType == StackType.TOP_LEFT && highlightedLocation?.column == index
                             )
                         }
                     }
@@ -277,7 +277,6 @@ fun FreeCellScreen(
                             .background(Color.LightGray.copy(alpha = 0.3f))
                             .clickable {
                                 if (highlightedLocation != null) {
-                                    // A card is already selected, move it to this stack
                                     val selectedStackType = highlightedLocation!!.stackType
                                     val selectedColumn = highlightedLocation!!.column
                                     val selectedCard = when (selectedStackType) {
@@ -286,24 +285,24 @@ fun FreeCellScreen(
                                         StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
                                     }
                                     if (selectedCard != null) {
-                                        // Remove the card from its original stack
-                                        when (selectedStackType) {
-                                            StackType.SECOND_ROW -> {
-                                                secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                        val destinationCard = topRightStacks[index].lastOrNull()
+                                        if (isValidMove(selectedCard, StackType.TOP_RIGHT, index, destinationCard)) {
+                                            when (selectedStackType) {
+                                                StackType.SECOND_ROW -> {
+                                                    secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                                }
+                                                StackType.TOP_LEFT -> {
+                                                    topLeftStacks[selectedColumn].clear()
+                                                }
+                                                StackType.TOP_RIGHT -> {
+                                                    topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
+                                                }
                                             }
-                                            StackType.TOP_LEFT -> {
-                                                topLeftStacks[selectedColumn].clear()
-                                            }
-                                            StackType.TOP_RIGHT -> {
-                                                topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
-                                            }
+                                            topRightStacks[index].add(selectedCard)
                                         }
-                                        // Add the card to the new stack
-                                        topRightStacks[index].add(selectedCard)
                                     }
                                     setHighlightedLocation(null)
                                 } else {
-                                    // No card is selected, select the card of this stack
                                     if (topRightStacks[index].isEmpty()) {
                                         setHighlightedLocation(null)
                                     } else {
@@ -318,7 +317,8 @@ fun FreeCellScreen(
                                 card = card,
                                 modifier = Modifier
                                     .width(35.dp)
-                                    .height(52.dp)
+                                    .height(52.dp),
+                                isSelected = highlightedLocation?.stackType == StackType.TOP_RIGHT && highlightedLocation?.column == index
                             )
                         }
                     }
@@ -341,7 +341,6 @@ fun FreeCellScreen(
                         .height(stackHeight)
                         .clickable {
                             if (highlightedLocation != null) {
-                                // A card is already selected, move it to this stack
                                 val selectedStackType = highlightedLocation!!.stackType
                                 val selectedColumn = highlightedLocation!!.column
                                 val selectedCard = when (selectedStackType) {
@@ -350,24 +349,24 @@ fun FreeCellScreen(
                                     StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
                                 }
                                 if (selectedCard != null) {
-                                    // Remove the card from its original stack
-                                    when (selectedStackType) {
-                                        StackType.SECOND_ROW -> {
-                                            secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                    val destinationCard = secondRowStacks[stackIndex].lastOrNull()
+                                    if (isValidMove(selectedCard, StackType.SECOND_ROW, stackIndex, destinationCard)) {
+                                        when (selectedStackType) {
+                                            StackType.SECOND_ROW -> {
+                                                secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                            }
+                                            StackType.TOP_LEFT -> {
+                                                topLeftStacks[selectedColumn].clear()
+                                            }
+                                            StackType.TOP_RIGHT -> {
+                                                topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
+                                            }
                                         }
-                                        StackType.TOP_LEFT -> {
-                                            topLeftStacks[selectedColumn].clear()
-                                        }
-                                        StackType.TOP_RIGHT -> {
-                                            topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
-                                        }
+                                        secondRowStacks[stackIndex].add(selectedCard)
                                     }
-                                    // Add the card to the new stack
-                                    secondRowStacks[stackIndex].add(selectedCard)
                                 }
                                 setHighlightedLocation(null)
                             } else {
-                                // No card is selected, select the bottom card of this stack
                                 if (secondRowStacks[stackIndex].isEmpty()) {
                                     setHighlightedLocation(null)
                                 } else {
@@ -417,5 +416,33 @@ fun SolitaireScreen(onBackPressed: () -> Unit) {
         }
         
         Text("Solitaire Game Coming Soon")
+    }
+}
+
+fun isValidMove(card: Card, destinationStackType: StackType, destinationIndex: Int, destinationCard: Card?): Boolean {
+    return when (destinationStackType) {
+        StackType.TOP_LEFT -> destinationCard == null
+        StackType.TOP_RIGHT -> {
+            if (destinationCard == null) {
+                if (card.value == 1) {
+                    true
+                } else {
+                    false
+                }
+            } else if (card.suit == destinationCard.suit && card.value == destinationCard.value + 1) {
+                true
+            } else {
+                false
+            }
+        }
+        StackType.SECOND_ROW -> {
+            if (destinationCard == null) {
+                true
+            } else if (card.suit != destinationCard.suit && card.value == destinationCard.value - 1) {
+                true
+            } else {
+                false
+            }
+        }
     }
 } 
