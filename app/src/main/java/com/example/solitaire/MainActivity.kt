@@ -215,6 +215,42 @@ fun FreeCellScreen(
                             .height(52.dp)
                             .border(2.dp, Color.Gray)
                             .background(Color.LightGray.copy(alpha = 0.3f))
+                            .clickable {
+                                if (highlightedLocation != null) {
+                                    // A card is already selected, move it to this stack
+                                    val selectedStackType = highlightedLocation!!.stackType
+                                    val selectedColumn = highlightedLocation!!.column
+                                    val selectedCard = when (selectedStackType) {
+                                        StackType.SECOND_ROW -> secondRowStacks[selectedColumn].lastOrNull()
+                                        StackType.TOP_LEFT -> topLeftStacks[selectedColumn].firstOrNull()
+                                        StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
+                                    }
+                                    if (selectedCard != null) {
+                                        // Remove the card from its original stack
+                                        when (selectedStackType) {
+                                            StackType.SECOND_ROW -> {
+                                                secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                            }
+                                            StackType.TOP_LEFT -> {
+                                                topLeftStacks[selectedColumn].clear()
+                                            }
+                                            StackType.TOP_RIGHT -> {
+                                                topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
+                                            }
+                                        }
+                                        // Add the card to the new stack
+                                        topLeftStacks[index].add(selectedCard)
+                                    }
+                                    setHighlightedLocation(null)
+                                } else {
+                                    // No card is selected, select the card of this stack
+                                    if (topLeftStacks[index].isEmpty()) {
+                                        setHighlightedLocation(null)
+                                    } else {
+                                        setHighlightedLocation(HighlightedCardLocation(StackType.TOP_LEFT, index))
+                                    }
+                                }
+                            }
                     ) {
                         // Display any cards in this stack
                         topLeftStacks[index].forEachIndexed { cardIndex, card ->
@@ -239,6 +275,42 @@ fun FreeCellScreen(
                             .height(52.dp)
                             .border(2.dp, Color.Gray)
                             .background(Color.LightGray.copy(alpha = 0.3f))
+                            .clickable {
+                                if (highlightedLocation != null) {
+                                    // A card is already selected, move it to this stack
+                                    val selectedStackType = highlightedLocation!!.stackType
+                                    val selectedColumn = highlightedLocation!!.column
+                                    val selectedCard = when (selectedStackType) {
+                                        StackType.SECOND_ROW -> secondRowStacks[selectedColumn].lastOrNull()
+                                        StackType.TOP_LEFT -> topLeftStacks[selectedColumn].firstOrNull()
+                                        StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
+                                    }
+                                    if (selectedCard != null) {
+                                        // Remove the card from its original stack
+                                        when (selectedStackType) {
+                                            StackType.SECOND_ROW -> {
+                                                secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                            }
+                                            StackType.TOP_LEFT -> {
+                                                topLeftStacks[selectedColumn].clear()
+                                            }
+                                            StackType.TOP_RIGHT -> {
+                                                topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
+                                            }
+                                        }
+                                        // Add the card to the new stack
+                                        topRightStacks[index].add(selectedCard)
+                                    }
+                                    setHighlightedLocation(null)
+                                } else {
+                                    // No card is selected, select the card of this stack
+                                    if (topRightStacks[index].isEmpty()) {
+                                        setHighlightedLocation(null)
+                                    } else {
+                                        setHighlightedLocation(HighlightedCardLocation(StackType.TOP_RIGHT, index))
+                                    }
+                                }
+                            }
                     ) {
                         // Display only the top card of the stack
                         topRightStacks[index].lastOrNull()?.let { card ->
@@ -268,11 +340,35 @@ fun FreeCellScreen(
                         .width(35.dp)
                         .height(stackHeight)
                         .clickable {
-                            if (secondRowStacks[stackIndex].isEmpty()) {
+                            if (highlightedLocation != null) {
+                                // A card is already selected, move it to this stack
+                                val selectedStackType = highlightedLocation!!.stackType
+                                val selectedColumn = highlightedLocation!!.column
+                                val selectedCard = when (selectedStackType) {
+                                    StackType.SECOND_ROW -> secondRowStacks[selectedColumn].lastOrNull()
+                                    StackType.TOP_LEFT -> topLeftStacks[selectedColumn].firstOrNull()
+                                    StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
+                                }
+                                if (selectedCard != null) {
+                                    // Remove the card from its original stack
+                                    when (selectedStackType) {
+                                        StackType.SECOND_ROW -> {
+                                            secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
+                                        }
+                                        StackType.TOP_LEFT -> {
+                                            topLeftStacks[selectedColumn].clear()
+                                        }
+                                        StackType.TOP_RIGHT -> {
+                                            topRightStacks[selectedColumn].removeAt(topRightStacks[selectedColumn].lastIndex)
+                                        }
+                                    }
+                                    // Add the card to the new stack
+                                    secondRowStacks[stackIndex].add(selectedCard)
+                                }
                                 setHighlightedLocation(null)
                             } else {
-                                val isAlreadyHighlighted = highlightedLocation?.stackType == StackType.SECOND_ROW && highlightedLocation?.column == stackIndex
-                                if (isAlreadyHighlighted) {
+                                // No card is selected, select the bottom card of this stack
+                                if (secondRowStacks[stackIndex].isEmpty()) {
                                     setHighlightedLocation(null)
                                 } else {
                                     setHighlightedLocation(HighlightedCardLocation(StackType.SECOND_ROW, stackIndex))
