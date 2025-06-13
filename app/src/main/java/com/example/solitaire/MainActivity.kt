@@ -75,6 +75,7 @@ fun FreeCellGameApp() {
     var topRightStacks by remember { mutableStateOf(List(4) { mutableListOf<Card>() }) }
     var topLeftStacks by remember { mutableStateOf(List(4) { mutableListOf<Card>() }) }
     var highlightedLocation by remember { mutableStateOf<HighlightedCardLocation?>(null) }
+    var moveHistory by remember { mutableStateOf(mutableListOf<Move>()) }
     
     // Function to deal cards
     fun dealNewGame() {
@@ -89,6 +90,22 @@ fun FreeCellGameApp() {
         secondRowStacks = newStacks
         topRightStacks = List(4) { mutableListOf() }
         topLeftStacks = List(4) { mutableListOf() }
+    }
+    
+    fun undoLastMove() {
+        if (moveHistory.isNotEmpty()) {
+            val lastMove = moveHistory.removeAt(moveHistory.lastIndex)
+            when (lastMove.toType) {
+                MoveType.TOP_LEFT -> topLeftStacks[lastMove.toIndex].removeAt(topLeftStacks[lastMove.toIndex].lastIndex)
+                MoveType.TOP_RIGHT -> topRightStacks[lastMove.toIndex].removeAt(topRightStacks[lastMove.toIndex].lastIndex)
+                MoveType.MAIN_STACK -> secondRowStacks[lastMove.toIndex].removeAt(secondRowStacks[lastMove.toIndex].lastIndex)
+            }
+            when (lastMove.fromType) {
+                MoveType.TOP_LEFT -> topLeftStacks[lastMove.fromIndex].add(lastMove.card)
+                MoveType.TOP_RIGHT -> topRightStacks[lastMove.fromIndex].add(lastMove.card)
+                MoveType.MAIN_STACK -> secondRowStacks[lastMove.fromIndex].add(lastMove.card)
+            }
+        }
     }
     
     Surface(
@@ -110,7 +127,9 @@ fun FreeCellGameApp() {
                 topLeftStacks = topLeftStacks,
                 highlightedLocation = highlightedLocation,
                 setHighlightedLocation = { highlightedLocation = it },
-                onDealNewGame = { dealNewGame() }
+                onDealNewGame = { dealNewGame() },
+                undoLastMove = { undoLastMove() },
+                moveHistory = moveHistory
             )
             Screen.Solitaire -> SolitaireScreen(
                 onBackPressed = { currentScreen = Screen.Menu }
@@ -165,7 +184,9 @@ fun FreeCellScreen(
     topLeftStacks: List<MutableList<Card>>,
     highlightedLocation: HighlightedCardLocation?,
     setHighlightedLocation: (HighlightedCardLocation?) -> Unit,
-    onDealNewGame: () -> Unit
+    onDealNewGame: () -> Unit,
+    undoLastMove: () -> Unit,
+    moveHistory: MutableList<Move>
 ) {
     Column(
         modifier = Modifier
@@ -225,8 +246,8 @@ fun FreeCellScreen(
                                         StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
                                     }
                                     if (selectedCard != null) {
-                                        val destinationCard = topLeftStacks[index].firstOrNull()
-                                        if (isValidMove(selectedCard, StackType.TOP_LEFT, index, destinationCard)) {
+                                        val destinationCards = topLeftStacks[index]
+                                        if (isValidMove(selectedCard, StackType.TOP_LEFT, index, destinationCards, topLeftStacks)) {
                                             when (selectedStackType) {
                                                 StackType.SECOND_ROW -> {
                                                     secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
@@ -239,6 +260,18 @@ fun FreeCellScreen(
                                                 }
                                             }
                                             topLeftStacks[index].add(selectedCard)
+                                            // Record the move
+                                            moveHistory.add(Move(
+                                                fromType = when (selectedStackType) {
+                                                    StackType.SECOND_ROW -> MoveType.MAIN_STACK
+                                                    StackType.TOP_LEFT -> MoveType.TOP_LEFT
+                                                    StackType.TOP_RIGHT -> MoveType.TOP_RIGHT
+                                                },
+                                                toType = MoveType.TOP_LEFT,
+                                                fromIndex = selectedColumn,
+                                                toIndex = index,
+                                                card = selectedCard
+                                            ))
                                         }
                                     }
                                     setHighlightedLocation(null)
@@ -285,8 +318,8 @@ fun FreeCellScreen(
                                         StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
                                     }
                                     if (selectedCard != null) {
-                                        val destinationCard = topRightStacks[index].lastOrNull()
-                                        if (isValidMove(selectedCard, StackType.TOP_RIGHT, index, destinationCard)) {
+                                        val destinationCards = topRightStacks[index]
+                                        if (isValidMove(selectedCard, StackType.TOP_RIGHT, index, destinationCards, topLeftStacks)) {
                                             when (selectedStackType) {
                                                 StackType.SECOND_ROW -> {
                                                     secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
@@ -299,6 +332,18 @@ fun FreeCellScreen(
                                                 }
                                             }
                                             topRightStacks[index].add(selectedCard)
+                                            // Record the move
+                                            moveHistory.add(Move(
+                                                fromType = when (selectedStackType) {
+                                                    StackType.SECOND_ROW -> MoveType.MAIN_STACK
+                                                    StackType.TOP_LEFT -> MoveType.TOP_LEFT
+                                                    StackType.TOP_RIGHT -> MoveType.TOP_RIGHT
+                                                },
+                                                toType = MoveType.TOP_RIGHT,
+                                                fromIndex = selectedColumn,
+                                                toIndex = index,
+                                                card = selectedCard
+                                            ))
                                         }
                                     }
                                     setHighlightedLocation(null)
@@ -349,8 +394,8 @@ fun FreeCellScreen(
                                     StackType.TOP_RIGHT -> topRightStacks[selectedColumn].lastOrNull()
                                 }
                                 if (selectedCard != null) {
-                                    val destinationCard = secondRowStacks[stackIndex].lastOrNull()
-                                    if (isValidMove(selectedCard, StackType.SECOND_ROW, stackIndex, destinationCard)) {
+                                    val destinationCards = secondRowStacks[stackIndex]
+                                    if (isValidMove(selectedCard, StackType.SECOND_ROW, stackIndex, destinationCards, topLeftStacks)) {
                                         when (selectedStackType) {
                                             StackType.SECOND_ROW -> {
                                                 secondRowStacks[selectedColumn].removeAt(secondRowStacks[selectedColumn].lastIndex)
@@ -363,6 +408,18 @@ fun FreeCellScreen(
                                             }
                                         }
                                         secondRowStacks[stackIndex].add(selectedCard)
+                                        // Record the move
+                                        moveHistory.add(Move(
+                                            fromType = when (selectedStackType) {
+                                                StackType.SECOND_ROW -> MoveType.MAIN_STACK
+                                                StackType.TOP_LEFT -> MoveType.TOP_LEFT
+                                                StackType.TOP_RIGHT -> MoveType.TOP_RIGHT
+                                            },
+                                            toType = MoveType.MAIN_STACK,
+                                            fromIndex = selectedColumn,
+                                            toIndex = stackIndex,
+                                            card = selectedCard
+                                        ))
                                     }
                                 }
                                 setHighlightedLocation(null)
@@ -398,6 +455,20 @@ fun FreeCellScreen(
                 }
             }
         }
+        // Undo button at the bottom
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Button(
+                onClick = { undoLastMove() },
+                modifier = Modifier
+                    .width(100.dp)
+                    .padding(bottom = 16.dp)
+            ) {
+                Text("Undo")
+            }
+        }
     }
 }
 
@@ -419,29 +490,50 @@ fun SolitaireScreen(onBackPressed: () -> Unit) {
     }
 }
 
-fun isValidMove(card: Card, destinationStackType: StackType, destinationIndex: Int, destinationCard: Card?): Boolean {
+fun isValidMove(card: Card, destinationStackType: StackType, destinationIndex: Int, destinationCards: MutableList<Card>, topLeftStacks: List<MutableList<Card>>): Boolean {
     return when (destinationStackType) {
-        StackType.TOP_LEFT -> destinationCard == null
+        StackType.TOP_LEFT -> destinationCards.isEmpty()
         StackType.TOP_RIGHT -> {
+            val destinationCard = destinationCards.lastOrNull()
             if (destinationCard == null) {
-                if (card.value == 1) {
-                    true
-                } else {
-                    false
-                }
-            } else if (card.suit == destinationCard.suit && card.value == destinationCard.value + 1) {
-                true
+                card.value == 1
             } else {
-                false
+                card.suit == destinationCard.suit && card.value == destinationCard.value + 1
             }
         }
         StackType.SECOND_ROW -> {
+            val destinationCard = destinationCards.lastOrNull()
             if (destinationCard == null) {
                 true
             } else if (card.suit != destinationCard.suit && card.value == destinationCard.value - 1) {
                 true
             } else {
-                false
+                var nullCount = 0
+                topLeftStacks.forEach { stack -> 
+                    if (stack.isEmpty()) {
+                        nullCount += 1
+                    }
+                }
+
+                var count = destinationCards.size - 1
+                var canMove = true
+                while (count > 0) {
+                    var lowerCard = destinationCards[count]
+                    var upperCard = destinationCards[count - 1]
+                    if (lowerCard.suit != upperCard.suit && lowerCard.value == upperCard.value - 1) {
+                        // the correct card is preceded by one that follows stacking rules
+                        if (upperCard.suit != card.suit && upperCard.value == card.value - 1) {
+                            // this card can go on the destination
+                            break
+                        } else {
+                            count -= 1
+                        }
+                    } else {
+                        canMove = false
+                        break
+                    }
+                }
+                canMove
             }
         }
     }
