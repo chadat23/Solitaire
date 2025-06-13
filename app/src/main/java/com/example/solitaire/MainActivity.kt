@@ -90,21 +90,33 @@ fun FreeCellGameApp() {
         secondRowStacks = newStacks
         topRightStacks = List(4) { mutableListOf() }
         topLeftStacks = List(4) { mutableListOf() }
+        moveHistory.clear()
     }
     
     fun undoLastMove() {
         if (moveHistory.isNotEmpty()) {
             val lastMove = moveHistory.removeAt(moveHistory.lastIndex)
+            
+            // Create new lists to trigger recomposition
+            val newSecondRowStacks = secondRowStacks.map { it.toMutableList() }.toMutableList()
+            val newTopRightStacks = topRightStacks.map { it.toMutableList() }.toMutableList()
+            val newTopLeftStacks = topLeftStacks.map { it.toMutableList() }.toMutableList()
+            
             when (lastMove.toType) {
-                MoveType.TOP_LEFT -> topLeftStacks[lastMove.toIndex].removeAt(topLeftStacks[lastMove.toIndex].lastIndex)
-                MoveType.TOP_RIGHT -> topRightStacks[lastMove.toIndex].removeAt(topRightStacks[lastMove.toIndex].lastIndex)
-                MoveType.MAIN_STACK -> secondRowStacks[lastMove.toIndex].removeAt(secondRowStacks[lastMove.toIndex].lastIndex)
+                MoveType.TOP_LEFT -> newTopLeftStacks[lastMove.toIndex].removeAt(newTopLeftStacks[lastMove.toIndex].lastIndex)
+                MoveType.TOP_RIGHT -> newTopRightStacks[lastMove.toIndex].removeAt(newTopRightStacks[lastMove.toIndex].lastIndex)
+                MoveType.MAIN_STACK -> newSecondRowStacks[lastMove.toIndex].removeAt(newSecondRowStacks[lastMove.toIndex].lastIndex)
             }
             when (lastMove.fromType) {
-                MoveType.TOP_LEFT -> topLeftStacks[lastMove.fromIndex].add(lastMove.card)
-                MoveType.TOP_RIGHT -> topRightStacks[lastMove.fromIndex].add(lastMove.card)
-                MoveType.MAIN_STACK -> secondRowStacks[lastMove.fromIndex].add(lastMove.card)
+                MoveType.TOP_LEFT -> newTopLeftStacks[lastMove.fromIndex].add(lastMove.card)
+                MoveType.TOP_RIGHT -> newTopRightStacks[lastMove.fromIndex].add(lastMove.card)
+                MoveType.MAIN_STACK -> newSecondRowStacks[lastMove.fromIndex].add(lastMove.card)
             }
+            
+            // Update the state with new lists
+            secondRowStacks = newSecondRowStacks
+            topRightStacks = newTopRightStacks
+            topLeftStacks = newTopLeftStacks
         }
     }
     
